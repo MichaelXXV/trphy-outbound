@@ -1,26 +1,61 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* TRPHY tokens. One light theme, no dark mode. */
+@theme {
+  --color-ink: #16161a;
+  --color-bone: #f4f0e8;
+  --color-brass: #a98b3e;
+  --color-brass-deep: #7d6628;
+  --color-steel: #6b6d70;
+  --color-line: #e2ddd3;
+  --color-paper: #fbfaf7;
+  --color-amber: #d97706;
+  --color-good: #2f7a4a;
+  --color-bad: #b3261e;
+  --font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --text-sm: 1rem;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+.heading {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 1.25rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  background: var(--color-ink);
+  color: var(--color-bone);
+}
+.btn:disabled { opacity: 0.5; }
+.btn-brass { background: var(--color-brass); color: var(--color-ink); }
+.btn-ghost { background: transparent; color: var(--color-ink); border: 1px solid var(--color-line); }
+
+.field {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 0.75rem;
+  border: 1px solid var(--color-line);
+  border-radius: 0.5rem;
+  background: white;
+}
+.field:focus { outline: 2px solid var(--color-brass); outline-offset: 1px; }
+
+.card {
+  background: white;
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+  padding: 1rem;
 }
