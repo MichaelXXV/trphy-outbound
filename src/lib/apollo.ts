@@ -1,6 +1,7 @@
-// Apollo API. Two calls per company at most: one people search page (1 credit) and one
-// enrichment to reveal the chosen person's email (1 credit if an email comes back, 0 for a
-// contact this account already unlocked). Nothing here asks for phone numbers, which cost 8 more.
+// Apollo API. People search (mixed_people/api_search, no credits) returns first name, title and a
+// has_email flag only: no last name, no email, no company size. The reveal (people/match, 1 credit
+// if an email comes back, 0 for a contact this account already unlocked) fills those in.
+// Nothing here asks for phone numbers, which cost 8 more.
 
 const BASE = "https://api.apollo.io/api/v1";
 
@@ -34,8 +35,15 @@ export function titleScore(title: string | null): number {
   return i === -1 ? TITLE_RANK.length : i;
 }
 
-export async function searchPeople(domain: string): Promise<ApolloPerson[]> {
-  const res = await fetch(`${BASE}/mixed_people/search`, {
+export interface ApolloCandidate {
+  id: string;
+  first_name: string | null;
+  title: string | null;
+  has_email: boolean;
+}
+
+export async function searchPeople(domain: string): Promise<ApolloCandidate[]> {
+  const res = await fetch(`${BASE}/mixed_people/api_search`, {
     method: "POST",
     headers: headers(),
     body: JSON.stringify({
@@ -48,19 +56,13 @@ export async function searchPeople(domain: string): Promise<ApolloPerson[]> {
   });
   if (!res.ok) throw new Error(`Apollo search ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const json = (await res.json()) as {
-    people?: Array<{
-      id: string; first_name?: string; last_name?: string; title?: string; email?: string;
-      email_status?: string; organization?: { estimated_num_employees?: number };
-    }>;
+    people?: Array<{ id: string; first_name?: string; title?: string; has_email?: boolean }>;
   };
   return (json.people ?? []).map((p) => ({
     id: p.id,
     first_name: p.first_name ?? null,
-    last_name: p.last_name ?? null,
     title: p.title ?? null,
-    email: p.email && !p.email.includes("email_not_unlocked") ? p.email : null,
-    email_status: p.email_status ?? null,
-    employee_count: p.organization?.estimated_num_employees ?? null,
+    has_email: p.has_email === true,
   }));
 }
 

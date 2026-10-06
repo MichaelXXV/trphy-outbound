@@ -28,28 +28,22 @@ export async function findPersonFor(company: Company): Promise<FindOutcome> {
   let credits = 0;
   try {
     const candidates = await searchPeople(domain);
-    credits += 1;
-    const employee = candidates.find((c) => c.employee_count != null)?.employee_count ?? null;
-    if (employee != null && company.employee_count == null) {
-      await db.from("companies").update({ employee_count: employee }).eq("id", company.id);
-    }
-    const ranked = candidates.sort((a, b) => titleScore(a.title) - titleScore(b.title));
+    const ranked = candidates
+      .filter((c) => c.has_email)
+      .sort((a, b) => titleScore(a.title) - titleScore(b.title));
 
     for (const c of ranked.slice(0, 2)) {
-      let email = c.email;
-      let status = c.email_status;
-      if (!email) {
-        const revealed = await revealEmail(c.id);
-        if (revealed?.email) credits += 1;
-        email = revealed?.email ?? null;
-        status = revealed?.email_status ?? status;
+      const p = await revealEmail(c.id);
+      if (!p?.email) continue;
+      credits += 1;
+      if (p.employee_count != null && company.employee_count == null) {
+        await db.from("companies").update({ employee_count: p.employee_count }).eq("id", company.id);
       }
-      if (!email) continue;
-      const verified = status === "verified";
+      const verified = p.email_status === "verified";
       await savePerson(company, {
-        first_name: c.first_name, last_name: c.last_name, title: c.title, email, verified, apollo_person_id: c.id,
+        first_name: p.first_name, last_name: p.last_name, title: p.title ?? c.title, email: p.email, verified, apollo_person_id: p.id,
       });
-      return { company: company.name, result: "person", who: [c.first_name, c.last_name].filter(Boolean).join(" ") || "Unnamed", email, verified, credits };
+      return { company: company.name, result: "person", who: [p.first_name, p.last_name].filter(Boolean).join(" ") || "Unnamed", email: p.email, verified, credits };
     }
   } catch (e) {
     console.error("[people] apollo failed for", company.name, e);
