@@ -6,11 +6,12 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { revealEmail, searchPeople, titleScore } from "@/lib/apollo";
 import { findSiteEmails } from "@/lib/site-email";
 import { websiteDomain } from "@/lib/places";
-import type { Company } from "@/lib/types";
+import { checkPerson, peopleDueForCheck, type CheckOutcome } from "@/lib/email-check";
+import type { Company, Person } from "@/lib/types";
 
 export type FindOutcome =
-  | { company: string; result: "person"; who: string; email: string; verified: boolean; credits: number }
-  | { company: string; result: "site_email"; email: string; credits: number }
+  | { company: string; result: "person"; who: string; email: string; check: string; credits: number }
+  | { company: string; result: "site_email"; email: string; check: string; credits: number }
   | { company: string; result: "nothing"; credits: number }
   | { company: string; result: "skipped"; reason: string }
   | { company: string; result: "error"; message: string };
@@ -40,10 +41,11 @@ export async function findPersonFor(company: Company): Promise<FindOutcome> {
         await db.from("companies").update({ employee_count: p.employee_count }).eq("id", company.id);
       }
       const verified = p.email_status === "verified";
-      await savePerson(company, {
+      const person = await savePerson(company, {
         first_name: p.first_name, last_name: p.last_name, title: p.title ?? c.title, email: p.email, verified, apollo_person_id: p.id,
       });
-      return { company: company.name, result: "person", who: [p.first_name, p.last_name].filter(Boolean).join(" ") || "Unnamed", email: p.email, verified, credits };
+      const check = verified ? "Apollo verified" : checkLabel(await checkPerson(person));
+      return { company: company.name, result: "person", who: [p.first_name, p.last_name].filter(Boolean).join(" ") || "Unnamed", email: p.email, check, credits };
     }
   } catch (e) {
     console.error("[people] apollo failed for", company.name, e);
@@ -51,8 +53,8 @@ export async function findPersonFor(company: Company): Promise<FindOutcome> {
 
   const siteEmails = company.website ? await findSiteEmails(company.website, domain) : [];
   if (siteEmails[0]) {
-    await savePerson(company, { first_name: null, last_name: null, title: null, email: siteEmails[0], verified: false, apollo_person_id: null });
-    return { company: company.name, result: "site_email", email: siteEmails[0], credits };
+    const person = await savePerson(company, { first_name: null, last_name: null, title: null, email: siteEmails[0], verified: false, apollo_person_id: null });
+    return { company: company.name, result: "site_email", email: siteEmails[0], check: checkLabel(await checkPerson(person)), credits };
   }
   return { company: company.name, result: "nothing", credits };
 }
@@ -60,7 +62,7 @@ export async function findPersonFor(company: Company): Promise<FindOutcome> {
 async function savePerson(
   company: Company,
   p: { first_name: string | null; last_name: string | null; title: string | null; email: string; verified: boolean; apollo_person_id: string | null },
-) {
+): Promise<Person> {
   const db = supabaseAdmin();
   const email = p.email.toLowerCase();
   const { data: suppressed } = await db.from("suppressions").select("email").eq("email", email).maybeSingle();
@@ -74,9 +76,11 @@ async function savePerson(
       email,
       email_verified: p.verified,
       email_verified_at: p.verified ? new Date().toISOString() : null,
+      email_check: p.verified ? "apollo_verified" : null,
+      email_checked_at: p.verified ? new Date().toISOString() : null,
       apollo_person_id: p.apollo_person_id,
     })
-    .select("id")
+    .select("*")
     .single();
   if (error || !person) throw new Error(error?.message ?? "person insert failed");
 
@@ -91,6 +95,37 @@ async function savePerson(
     .select("id")
     .single();
   if (lead) await db.from("lead_events").insert({ lead_id: lead.id, kind: "created", actor: "system", detail: { source: p.apollo_person_id ? "apollo" : "website" } });
+  return person as Person;
+}
+
+function checkLabel(o: CheckOutcome): string {
+  if (o.result === "error") return `not checked, ${o.message}`;
+  switch (o.action) {
+    case "verified": return "verified";
+    case "flagged": return "catch-all, allowed but flagged";
+    case "retry_tomorrow": return "unknown, retry tomorrow";
+    case "held": return "unknown twice, lead held";
+    case "suppressed": return `${o.result}, suppressed, lead lost`;
+  }
+}
+
+export interface CheckState {
+  lines?: string[];
+  error?: string;
+}
+
+const CHECK_BATCH = 10;
+
+// The Check emails button. Unchecked emails first, then unknowns whose day has passed.
+export async function checkEmailsBatch(): Promise<CheckState> {
+  await requireOps();
+  const due = await peopleDueForCheck(CHECK_BATCH);
+  if (due.length === 0) return { lines: [], error: "No emails are due for a check." };
+  const lines: string[] = [];
+  for (const p of due) lines.push(`${p.email}: ${checkLabel(await checkPerson(p))}`);
+  revalidatePath("/ops/companies");
+  revalidatePath("/ops");
+  return { lines };
 }
 
 export interface FindState {

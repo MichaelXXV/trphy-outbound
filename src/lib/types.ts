@@ -27,12 +27,15 @@ export interface Person {
   email: string;
   email_verified: boolean;
   email_verified_at: string | null;
+  email_check: "apollo_verified" | "ok" | "catch_all" | "unknown" | "invalid" | "disposable" | null;
+  email_checked_at: string | null;
+  email_check_attempts: number;
   apollo_person_id: string | null;
   created_at: string;
 }
 
 export type LeadStatus =
-  | "new" | "reviewed" | "approved" | "sent" | "replied" | "quoted" | "won" | "lost" | "suppressed";
+  | "new" | "reviewed" | "approved" | "sent" | "replied" | "quoted" | "won" | "lost" | "suppressed" | "held";
 
 export interface Lead {
   id: string;
@@ -53,6 +56,7 @@ export interface Lead {
   shopify_draft_order_id: string | null;
   won_at: string | null;
   lost_reason: string | null;
+  hold_reason: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;

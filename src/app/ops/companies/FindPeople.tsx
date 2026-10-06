@@ -20,8 +20,8 @@ export default function FindPeople({ industry, remaining }: { industry: string; 
           {state.outcomes.map((o, i) => (
             <li key={i}>
               <span className="font-medium">{o.company}:</span>{" "}
-              {o.result === "person" && <span className="text-good">{o.who}, {o.email}{o.verified ? " (verified)" : " (not verified yet)"}</span>}
-              {o.result === "site_email" && <span>{o.email} from the website, not verified yet</span>}
+              {o.result === "person" && <span className="text-good">{o.who}, {o.email} ({o.check})</span>}
+              {o.result === "site_email" && <span>{o.email} from the website ({o.check})</span>}
               {o.result === "nothing" && <span className="text-steel">nobody found</span>}
               {o.result === "skipped" && <span className="text-steel">skipped, {o.reason}</span>}
               {o.result === "error" && <span className="text-bad">{o.message}</span>}

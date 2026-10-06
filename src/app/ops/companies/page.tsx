@@ -2,6 +2,16 @@ import { requireOps } from "@/lib/ops-auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Company, Person } from "@/lib/types";
 import FindPeople from "./FindPeople";
+import CheckEmails from "./CheckEmails";
+
+const CHECK_LABEL: Record<string, { text: string; tone: string }> = {
+  apollo_verified: { text: "verified (Apollo)", tone: "text-good" },
+  ok: { text: "verified", tone: "text-good" },
+  catch_all: { text: "catch-all, flagged", tone: "text-amber" },
+  unknown: { text: "unknown", tone: "text-amber" },
+  invalid: { text: "invalid, suppressed", tone: "text-bad" },
+  disposable: { text: "disposable, suppressed", tone: "text-bad" },
+};
 
 export default async function CompaniesPage({ searchParams }: { searchParams: Promise<{ industry?: string }> }) {
   await requireOps();
@@ -31,6 +41,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
       </div>
 
       <FindPeople industry={industry} remaining={remaining} />
+      <CheckEmails />
 
       <div className="card !p-0 overflow-x-auto">
         <table className="w-full text-sm">
@@ -71,7 +82,10 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
                     {p && (
                       <>
                         <div className="font-mono text-xs">{p.email}</div>
-                        <div className={`text-xs ${p.email_verified ? "text-good" : "text-amber"}`}>{p.email_verified ? "verified" : "not verified"}</div>
+                        {(() => {
+                          const l = (p.email_check && CHECK_LABEL[p.email_check]) || { text: "not checked", tone: "text-steel" };
+                          return <div className={`text-xs ${l.tone}`}>{l.text}</div>;
+                        })()}
                       </>
                     )}
                   </td>

@@ -28,23 +28,30 @@ The rules are in `docs/outbound-spec.md`. Repo conventions are in `CLAUDE.md`. R
   only) and `people/match` fills in last name, email, email_status and company size.
   Open question: Apollo reports these plumbers at 1 to 4 employees against the spec's 30 to 500.
 
+- Email verification (MillionVerifier, key in `.env.local` as MILLIONVERIFIER_API_KEY, 10,500 credits).
+  Migration `002_email_check.sql` applied by hand. Michael's rules: Apollo verified counts, no second
+  check. ok is verified. catch_all passes but is flagged. unknown gets one retry a day later, then the
+  lead goes to `held` (hold_reason "email unknown"). invalid and disposable go on the suppression list
+  and the lead is lost, "bad email". New emails are checked as Find people saves them; the Check emails
+  button on /ops/companies does the rest, ten per press, and picks up due retries.
+  Tested live: info@riddellplumbing.com came back invalid, suppressed, lead lost. The catch_all and
+  unknown paths have not met a real email yet. Nothing runs the next day retry on its own; press the
+  button (a Vercel cron can do it once the app is deployed).
+
 ### Next, in order
-1. Email verification. Apollo's `email_status === "verified"` is trusted as verified. Everything else
-   needs a verifier before it can be approved (MillionVerifier or Instantly's verifier). Add the call and
-   a column.
-2. Logo fetcher: og:image, logo img, high res favicon off the company site; Brandfetch or logo.dev as
+1. Logo fetcher: og:image, logo img, high res favicon off the company site; Brandfetch or logo.dev as
    fallback. Claude vision grades usable / needs_cleanup / not_pvc. Store in the `logos` bucket, set
    `companies.logo_path`, `logo_source_url`, `logo_grade`, `logo_notes`.
-3. Mockup generator with sharp: PVC look (flat fills, bevel, border from the logo, rounded die-cut) on the
+2. Mockup generator with sharp: PVC look (flat fills, bevel, border from the logo, rounded die-cut) on the
    ten TR5 factory renders (2048px, on Michael's machine under C:\Users\Michael\Projects\TRPHY, Headwear
    folder, and in the TRPHY Shopify store). Hero on black, graphite, white, one with a house patch, a 2x2
    of the four house patches. Store in `mockups`, rows in `mockups`. The four house patch PNGs are:
    TRPHY_Fishing_Original_Approved_Master.png, TRPHY_Texas_T_Recovered_Master.png,
    TRPHY-01-Blessedblkwhite.png, Layer_124.png (Dallas D). Michael will drop them into the repo.
-4. Review queue (`/ops/review`): mockup, person, email, logo grade; approve, fix logo, skip.
-5. Lead page (`/for/<slug>`): mockups, three prices with the free patch at 100, delivery promise, option
+3. Review queue (`/ops/review`): mockup, person, email, logo grade; approve, fix logo, skip.
+4. Lead page (`/for/<slug>`): mockups, three prices with the free patch at 100, delivery promise, option
    patches, colourways, rope colours, "Send me a quote" form writing `quote_requests`.
-6. Instantly push and reply webhook. Then Vercel (go.trphy.co) and Shopify draft orders.
+5. Instantly push and reply webhook. Then Vercel (go.trphy.co) and Shopify draft orders.
 
 ### Rules learned here
 - The Cowork link to Michael's machine times out at 180 seconds and git lock files written through it
