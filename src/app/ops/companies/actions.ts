@@ -7,6 +7,7 @@ import { revealEmail, searchPeople, titleScore } from "@/lib/apollo";
 import { findSiteEmails } from "@/lib/site-email";
 import { websiteDomain } from "@/lib/places";
 import { checkPerson, peopleDueForCheck, type CheckOutcome } from "@/lib/email-check";
+import { fetchLogoFor, type LogoOutcome } from "@/lib/logo-fetch";
 import type { Company, Person } from "@/lib/types";
 
 export type FindOutcome =
@@ -166,4 +167,33 @@ export async function findPeopleBatch(_prev: FindState, formData: FormData): Pro
   revalidatePath("/ops/companies");
   revalidatePath("/ops");
   return { outcomes, credits: outcomes.reduce((n, o) => n + ("credits" in o ? o.credits : 0), 0) };
+}
+
+export interface LogoState {
+  outcomes?: (LogoOutcome | { company: string; result: "error"; message: string })[];
+  error?: string;
+}
+
+const LOGO_BATCH = 5;
+
+// The Fetch logos button. Five companies per press, side by side, oldest first; a company is
+// tried once (logo_fetched_at), found or not.
+export async function fetchLogosBatch(_prev: LogoState, formData: FormData): Promise<LogoState> {
+  await requireOps();
+  const db = supabaseAdmin();
+  const industry = String(formData.get("industry") ?? "");
+  let q = db.from("companies").select("*").is("logo_fetched_at", null).not("website", "is", null)
+    .order("created_at", { ascending: true }).limit(LOGO_BATCH);
+  if (industry) q = q.eq("industry", industry);
+  const { data } = await q;
+  const todo = (data ?? []) as Company[];
+  if (todo.length === 0) return { outcomes: [], error: "Every company here has had its logo fetched." };
+
+  const outcomes = await Promise.all(todo.map((c) =>
+    fetchLogoFor(c).catch((e) => {
+      console.error("[logo] failed for", c.name, e);
+      return { company: c.name, result: "error" as const, message: e instanceof Error ? e.message : "failed" };
+    })));
+  revalidatePath("/ops/companies");
+  return { outcomes };
 }

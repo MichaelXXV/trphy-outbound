@@ -38,20 +38,29 @@ The rules are in `docs/outbound-spec.md`. Repo conventions are in `CLAUDE.md`. R
   unknown paths have not met a real email yet. Nothing runs the next day retry on its own; press the
   button (a Vercel cron can do it once the app is deployed).
 
+- Logo fetcher (`src/lib/logo-*.ts`, Fetch logos button, five per press in parallel). Migration
+  `003_logo_fields.sql` applied by hand (logo_colors, logo_kind, logo_fetched_at). Candidates in Michael's
+  order: header img or inline svg with "logo" in src/alt/class (or on its wrapper), og:image,
+  apple-touch-icon or largest favicon, then Brandfetch / logo.dev only when the site gave nothing at
+  300px or more. Flat backgrounds are flood filled from the corners with sharp; anything harder is left
+  for a person. Claude Opus 5.5 (structured output, refusal fallback on) picks and grades on Michael's
+  rubric; under 300px or a complex background can never come out usable. Cleaned PNG at
+  `logos/<company id>/logo.png`.
+  Tested live on 5: Riddell usable, Tribeca needs_cleanup, Metro Flow not_pvc (chrome and gradients),
+  Total Plumbing and Public Service Plumbers return 403 to any server fetch (bot protection), so no logo.
+  Not set: BRANDFETCH_API_KEY, LOGO_DEV_TOKEN. The same 403 sites also defeat the website email fallback.
+
 ### Next, in order
-1. Logo fetcher: og:image, logo img, high res favicon off the company site; Brandfetch or logo.dev as
-   fallback. Claude vision grades usable / needs_cleanup / not_pvc. Store in the `logos` bucket, set
-   `companies.logo_path`, `logo_source_url`, `logo_grade`, `logo_notes`.
-2. Mockup generator with sharp: PVC look (flat fills, bevel, border from the logo, rounded die-cut) on the
+1. Mockup generator with sharp: PVC look (flat fills, bevel, border from the logo, rounded die-cut) on the
    ten TR5 factory renders (2048px, on Michael's machine under C:\Users\Michael\Projects\TRPHY, Headwear
    folder, and in the TRPHY Shopify store). Hero on black, graphite, white, one with a house patch, a 2x2
    of the four house patches. Store in `mockups`, rows in `mockups`. The four house patch PNGs are:
    TRPHY_Fishing_Original_Approved_Master.png, TRPHY_Texas_T_Recovered_Master.png,
    TRPHY-01-Blessedblkwhite.png, Layer_124.png (Dallas D). Michael will drop them into the repo.
-3. Review queue (`/ops/review`): mockup, person, email, logo grade; approve, fix logo, skip.
-4. Lead page (`/for/<slug>`): mockups, three prices with the free patch at 100, delivery promise, option
+2. Review queue (`/ops/review`): mockup, person, email, logo grade; approve, fix logo, skip.
+3. Lead page (`/for/<slug>`): mockups, three prices with the free patch at 100, delivery promise, option
    patches, colourways, rope colours, "Send me a quote" form writing `quote_requests`.
-5. Instantly push and reply webhook. Then Vercel (go.trphy.co) and Shopify draft orders.
+4. Instantly push and reply webhook. Then Vercel (go.trphy.co) and Shopify draft orders.
 
 ### Rules learned here
 - The Cowork link to Michael's machine times out at 180 seconds and git lock files written through it

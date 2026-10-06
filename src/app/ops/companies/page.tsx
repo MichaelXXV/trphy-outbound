@@ -3,6 +3,12 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { Company, Person } from "@/lib/types";
 import FindPeople from "./FindPeople";
 import CheckEmails from "./CheckEmails";
+import FetchLogos from "./FetchLogos";
+
+// Five logos graded side by side can take a minute or two.
+export const maxDuration = 300;
+
+const GRADE_TONE: Record<string, string> = { usable: "text-good", needs_cleanup: "text-amber", not_pvc: "text-bad" };
 
 const CHECK_LABEL: Record<string, { text: string; tone: string }> = {
   apollo_verified: { text: "verified (Apollo)", tone: "text-good" },
@@ -29,6 +35,14 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
   const { data: indRows } = await db.from("companies").select("industry");
   const industries = Array.from(new Set((indRows ?? []).map((r: { industry: string | null }) => r.industry).filter(Boolean))) as string[];
   const remaining = companies.filter((c) => !personByCompany.has(c.id) && c.website).length;
+  const logosRemaining = companies.filter((c) => !c.logo_fetched_at && c.website).length;
+
+  const logoPaths = companies.map((c) => c.logo_path).filter((p): p is string => !!p);
+  const { data: signed } = logoPaths.length
+    ? await db.storage.from("logos").createSignedUrls(logoPaths, 60 * 60)
+    : { data: [] };
+  const logoUrl = new Map<string, string>();
+  for (const s of signed ?? []) if (s.path && s.signedUrl) logoUrl.set(s.path, s.signedUrl);
 
   return (
     <div className="flex flex-col gap-4">
@@ -42,6 +56,7 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
 
       <FindPeople industry={industry} remaining={remaining} />
       <CheckEmails />
+      <FetchLogos industry={industry} remaining={logosRemaining} />
 
       <div className="card !p-0 overflow-x-auto">
         <table className="w-full text-sm">
@@ -89,7 +104,15 @@ export default async function CompaniesPage({ searchParams }: { searchParams: Pr
                       </>
                     )}
                   </td>
-                  <td className="p-3 text-steel">{c.logo_grade ?? "not fetched"}</td>
+                  <td className="p-3">
+                    {c.logo_path && logoUrl.get(c.logo_path) && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={logoUrl.get(c.logo_path)} alt={`${c.name} logo`} className="h-12 w-24 object-contain rounded bg-[#808080] p-1" />
+                    )}
+                    <div className={`text-xs ${c.logo_grade ? GRADE_TONE[c.logo_grade] : "text-steel"}`} title={c.logo_notes ?? undefined}>
+                      {c.logo_grade ? c.logo_grade.replace("_", " ") : c.logo_fetched_at ? "no logo found" : "not fetched"}
+                    </div>
+                  </td>
                 </tr>
               );
             })}

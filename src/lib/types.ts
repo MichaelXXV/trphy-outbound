@@ -14,6 +14,9 @@ export interface Company {
   logo_source_url: string | null;
   logo_grade: "usable" | "needs_cleanup" | "not_pvc" | null;
   logo_notes: string | null;
+  logo_colors: string[] | null;
+  logo_kind: "mark" | "wordmark" | "both" | null;
+  logo_fetched_at: string | null;
   is_existing_customer: boolean;
   created_at: string;
 }
